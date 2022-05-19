@@ -42,79 +42,77 @@ func AutoPayFor(params map[string]string, giveType string) *response.PayForRespo
 		payForResponse.ResultCode = "01"
 		payForResponse.ResultMsg = "下游商户代付请求，签名失败。"
 		return payForResponse
-	} else {
-		res, msg := checkSettAmount(params["amount"])
-		if !res {
-			payForResponse.ResultCode = "01"
-			payForResponse.ResultMsg = msg
+	}
 
-			return payForResponse
-		}
+	res, msg := checkSettAmount(params["amount"])
+	if !res {
+		payForResponse.ResultCode = "01"
+		payForResponse.ResultMsg = msg
+		return payForResponse
+	}
 
-		exist := payfor.IsExistPayForByMerchantOrderId(params["merchantOrderId"])
-		if exist {
-			logs.Error(fmt.Sprintf("代付订单号重复：merchantOrderId = %s", params["merchantOrderId"]))
-			payForResponse.ResultMsg = "商户订单号重复"
-			payForResponse.ResultCode = "01"
-
-			return payForResponse
-		}
-
-		settAmount, err := strconv.ParseFloat(params["amount"], 64)
-		if err != nil {
-			logs.Error("代付的金额错误：", err)
-			payForResponse.ResultMsg = "代付金额错误"
-			payForResponse.ResultCode = "01"
-			return payForResponse
-		}
-
-		p := payfor.PayforInfo{
-			PayforUid:       "pppp" + xid.New().String(),
-			MerchantUid:     merchantInfo.MerchantUid,
-			MerchantName:    merchantInfo.MerchantName,
-			MerchantOrderId: params["merchantOrderId"],
-			BankOrderId:     "4444" + xid.New().String(),
-			PayforAmount:    settAmount,
-			Status:          conf.PAYFOR_COMFRIM,
-			BankAccountName: params["realname"],
-			BankAccountNo:   params["cardNo"],
-			BankAccountType: params["accType"],
-			City:            params["city"],
-			Ares:            params["province"] + params["city"],
-			PhoneNo:         params["mobileNo"],
-			GiveType:        giveType,
-			UpdateTime:      utils.GetBasicDateTime(),
-			CreateTime:      utils.GetBasicDateTime(),
-			RequestTime:     utils.GetBasicDateTime(),
-		}
-
-		// 获取银行编码和银行名称
-		p.BankCode = utils.GetBankCodeByBankCardNo(p.BankAccountNo)
-		p.BankName = utils.GetBankNameByCode(p.BankCode)
-
-		if !payfor.InsertPayfor(p) {
-			payForResponse.ResultCode = "01"
-			payForResponse.ResultMsg = "代付记录插入失败"
-		} else {
-			payForResponse.ResultMsg = "代付订单已生成"
-			payForResponse.ResultCode = "00"
-			payForResponse.SettAmount = params["amount"]
-			payForResponse.MerchantOrderId = params["MerchantOrderId"]
-
-			p = payfor.GetPayForByBankOrderId(p.BankOrderId)
-
-			if findPayForRoad(p) {
-				payForResponse.ResultCode = "00"
-				payForResponse.ResultMsg = "银行处理中"
-			} else {
-				payForResponse.ResultCode = "01"
-				payForResponse.ResultMsg = "系统处理失败"
-			}
-
-		}
+	exist := payfor.IsExistPayForByMerchantOrderId(params["merchantOrderId"])
+	if exist {
+		logs.Error(fmt.Sprintf("代付订单号重复：merchantOrderId = %s", params["merchantOrderId"]))
+		payForResponse.ResultMsg = "商户订单号重复"
+		payForResponse.ResultCode = "01"
 
 		return payForResponse
 	}
+
+	settAmount, err := strconv.ParseFloat(params["amount"], 64)
+	if err != nil {
+		logs.Error("代付的金额错误：", err)
+		payForResponse.ResultMsg = "代付金额错误"
+		payForResponse.ResultCode = "01"
+		return payForResponse
+	}
+
+	p := payfor.PayforInfo{
+		PayforUid:       "pppp" + xid.New().String(),
+		MerchantUid:     merchantInfo.MerchantUid,
+		MerchantName:    merchantInfo.MerchantName,
+		MerchantOrderId: params["merchantOrderId"],
+		BankOrderId:     "4444" + xid.New().String(),
+		PayforAmount:    settAmount,
+		Status:          conf.PAYFOR_COMFRIM,
+		BankAccountName: params["realname"],
+		BankAccountNo:   params["cardNo"],
+		BankAccountType: params["accType"],
+		City:            params["city"],
+		Ares:            params["province"] + params["city"],
+		PhoneNo:         params["mobileNo"],
+		GiveType:        giveType,
+		UpdateTime:      utils.GetBasicDateTime(),
+		CreateTime:      utils.GetBasicDateTime(),
+		RequestTime:     utils.GetBasicDateTime(),
+	}
+
+	// 获取银行编码和银行名称
+	p.BankCode = utils.GetBankCodeByBankCardNo(p.BankAccountNo)
+	p.BankName = utils.GetBankNameByCode(p.BankCode)
+
+	if !payfor.InsertPayfor(p) {
+		payForResponse.ResultCode = "01"
+		payForResponse.ResultMsg = "代付记录插入失败"
+		return payForResponse
+	}
+
+	payForResponse.ResultMsg = "代付订单已生成"
+	payForResponse.ResultCode = "00"
+	payForResponse.SettAmount = params["amount"]
+	payForResponse.MerchantOrderId = params["MerchantOrderId"]
+
+	p = payfor.GetPayForByBankOrderId(p.BankOrderId)
+	if !findPayForRoad(p) {
+		payForResponse.ResultCode = "01"
+		payForResponse.ResultMsg = "系统处理失败"
+		return payForResponse
+	}
+	payForResponse.ResultCode = "00"
+	payForResponse.ResultMsg = "银行处理中"
+
+	return payForResponse
 
 }
 
